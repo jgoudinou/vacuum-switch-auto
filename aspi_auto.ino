@@ -53,7 +53,6 @@ void loop() {
    nVPP = getVPP();
    Serial.print("Volts Peak : "); Serial.println(nVPP,3);
 
-//lcd.clear();
 
    if(nVPP>0.150){ //doit être allumé
      if(etat_relais1==0) { //Il est eteint 
