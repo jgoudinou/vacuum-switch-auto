@@ -1,0 +1,1 @@
+# vacuum-switch-auto
