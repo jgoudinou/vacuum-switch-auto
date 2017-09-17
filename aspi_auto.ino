@@ -1,6 +1,7 @@
 #include <LiquidCrystal.h>
 
-#define DELAYOFF 6000
+#define DELAY_VACUUM_OFF 6000
+#define DELAY_AUTOPOWER_OFF 1800000 //On coupe au bout de 30 minutes
 
 int sensorTA12 = A0; // Analog input pin that sensor is attached to
 int relay1 = 6; // Command relay 1
@@ -20,11 +21,11 @@ const int rs = 12, en = 11, d4 = 5, d5 = 4, d6 = 3, d7 = 2;
 LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
 
 uint32_t tempo_off,tempo_on ;
-uint32_t tempo_retro ;
+uint32_t tempo_retro ;       //timestamp pour savoir quand couper le retro eclairage
 
 
 void setup() {
-   Serial.begin(9600); 
+   //Serial.begin(9600); 
    pinMode(sensorTA12, INPUT);
    
    pinMode(relay1,OUTPUT);digitalWrite(relay1,HIGH);
@@ -44,13 +45,13 @@ void setup() {
    tempo_retro=0;
 
    lcd.setCursor(0, 0);
-   lcd.print("Machine    : OFF");
+   lcd.print("Machine: OFF");
    lcd.setCursor(0, 1);
-   lcd.print("Aspirateur : OFF");
+   lcd.print("Aspirateur: OFF");
 }
 
 void loop() {
-   nVPP = getVPP();
+   nVPP = getVPP(); //nVPP=0;
    Serial.print("Volts Peak : "); Serial.println(nVPP,3);
 
 
@@ -60,33 +61,33 @@ void loop() {
          etat_relais1=1;
          tempo_off=millis(); //je repousse la tempo d'extinction de l'aspi
          digitalWrite(relay1,LOW); //On allume l'aspi
-         tempo_retro=millis(); //Changement d'état alors on active le retro eclairage
+         //tempo_retro=millis(); //Changement d'état alors on active le retro eclairage
          //Serial.println("Relais ON");Serial.println("");Serial.println("");Serial.println("");
          lcd.setCursor(0, 1);
-         lcd.print("Aspirateur : ON ");
+         lcd.print("Aspirateur: ON ");
        }
-       tempo_retro=millis(); //Changement d'état prévu alors on active le retro eclairage
      } else {//déjà allumé
        tempo_off=millis(); //je repousse la tempo d'extinction
        lcd.setCursor(0, 1);
-       lcd.print("Aspirateur : ON ");
+       lcd.print("Aspirateur: ON ");
      }
+     tempo_retro=millis(); //Est allumé ou va s'allumer.
    } else { //doit être éteint
      if (etat_relais1==1){ //Il est allumé
-       if (tempo_off<(millis()-DELAYOFF)){ //Retard à l'extinction
+       if (tempo_off<(millis()-DELAY_VACUUM_OFF)){ //Retard à l'extinction
          etat_relais1=0;
          digitalWrite(relay1,HIGH); //On éteind l'aspi  
          //Serial.println("Relais OFF");
          lcd.setCursor(0, 1);
-         lcd.print("Aspirateur : OFF");
+         lcd.print("Aspirateur: OFF");
        } else {
          lcd.setCursor(0, 1);
-         lcd.print("Aspirateur : ");
+         lcd.print("Aspirateur: ");
          lcd.setCursor(13, 1);
-         lcd.print(1+(tempo_off-(millis()-DELAYOFF))/1000);
+         lcd.print(1+(tempo_off-(millis()-DELAY_VACUUM_OFF))/1000);
          lcd.print("    ");
        }
-       tempo_retro=millis(); //Changement d'état prévu alors on active le retro eclairage
+       //tempo_retro=millis(); //Changement d'état prévu alors on active le retro eclairage
      } else {//déjà éteint
        tempo_on=millis(); //je repousse la tempo d'allumage
      }
@@ -94,14 +95,37 @@ void loop() {
  
    lcd.setCursor(0, 0);
    if(nVPP>0.150)     
-     lcd.print("Machine    : ON ");
-   else
-     lcd.print("Machine    : OFF");
+     lcd.print("Machine: ON    ");
+   else {
+     lcd.print("Machine: OFF /");
+     int aso = (DELAY_AUTOPOWER_OFF-(millis()-tempo_retro))/60000;
+     lcd.print(aso);
+     Serial.print("Machine: OFF /");
+     Serial.println(aso);
+   }
 
+   //Retro éclairage de l'écran
    if (millis()<15000 || tempo_retro>(millis()-15000))
      digitalWrite(retroled,HIGH);
    else
      digitalWrite(retroled,LOW);
+
+   if (millis()-tempo_retro>(DELAY_AUTOPOWER_OFF)){ //Dernière activité y'a 15 minutes je coupe tout
+     digitalWrite(retroled,HIGH);
+     lcd.setCursor(0, 0);
+     lcd.print(" ARRET          ");
+     lcd.setCursor(0, 1);
+     lcd.print("    AUTOMATIQUE ");
+     delay(2000);
+     
+     digitalWrite(relay4,LOW); //ON
+     delay(300);
+     digitalWrite(relay4,HIGH); //OFF
+     tempo_retro+=20000; //JE NE DOIS JAMAIS TOMBER DEDANS PUISQUE LE TELERUPTEUR AURA SWITCHé   
+   }
+   
+
+
    
    /*Serial.print("etat relay : ");
    Serial.println(etat_relais1);
